@@ -12,6 +12,7 @@
     "type": "module",
     "author": "simon-cabansag",
     "dependencies": {
+        "dotenv": "^16.4.5",
         "express": "^4.21.1",
         "three": "^0.169.0"
     },
