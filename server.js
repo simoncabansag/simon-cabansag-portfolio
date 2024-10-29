@@ -20,6 +20,6 @@ app.use("*", (_req, res) => {
     res.status(404).json({ Message: "404 not found" })
 })
 
-server.listen(8124, () => {
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
