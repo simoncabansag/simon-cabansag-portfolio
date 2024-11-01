@@ -1,35 +1,62 @@
-// import {
-//     Scene,
-//     PerspectiveCamera,
-//     WebGLRenderer,
-//     BoxGeometry,
-//     MeshBasicMaterial,
-//     Mesh,
-// } from "../node_modules/three/build/three.module.js"
-import * as THREE from "../node_modules/three/build/three.module.js"
+import { WebGLRenderer } from "../node_modules/three/src/renderers/WebGLRenderer.js"
+import { PerspectiveCamera } from "../node_modules/three/src/cameras/PerspectiveCamera.js"
+import { Scene } from "../node_modules/three/src/scenes/Scene.js"
+import { BoxGeometry } from "../node_modules/three/src/geometries/BoxGeometry.js"
+import { Mesh } from "../node_modules/three/src/objects/Mesh.js"
+import { MeshBasicMaterial } from "../node_modules/three/src/materials/MeshBasicMaterial.js"
 
-const scene = new THREE.Scene()
-const camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-)
+class Portfolio {
+    constructor() {
+        this.Initialize()
+        this.RAF()
+    }
 
-const renderer = new THREE.WebGLRenderer()
-renderer.setSize(window.innerWidth, window.innerHeight)
-document.body.appendChild(renderer.domElement)
+    Initialize() {
+        this.threejs = new WebGLRenderer({
+            antialias: true,
+        })
+        this.threejs.setSize(window.innerWidth, window.innerHeight)
+        this.threejs.setPixelRatio(window.devicePixelRatio)
+        this.threejs.domElement.className = "main-canvas"
+        document
+            .getElementById("portfolio")
+            ?.appendChild(this.threejs.domElement)
 
-const geometry = new THREE.BoxGeometry(1, 1, 1)
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-const cube = new THREE.Mesh(geometry, material)
-scene.add(cube)
+        this.scene = new Scene()
 
-camera.position.z = 5
+        const fov = 60
+        const aspect = window.innerWidth / window.innerHeight
+        const near = 1
+        const far = 10000
+        this.camera = new PerspectiveCamera(fov, aspect, near, far)
 
-function animate() {
-    cube.rotation.x += 0.01
-    cube.rotation.y += 0.01
-    renderer.render(scene, camera)
+        const geometry = new BoxGeometry(1, 1, 1)
+        const material = new MeshBasicMaterial({ color: 0x00ff00 })
+        this.cube = new Mesh(geometry, material)
+        this.scene.add(this.cube)
+
+        this.camera.position.z = 5
+    }
+
+    RAF() {
+        requestAnimationFrame((t) => {
+            if (this.previousRAF == null) {
+                this.previousRAF = t
+            }
+
+            this.cube.rotation.x += 0.01
+            this.cube.rotation.y += 0.01
+
+            this.RAF()
+
+            if (typeof this.scene === "undefined") return
+            if (typeof this.camera === "undefined") return
+            this.threejs?.render(this.scene, this.camera)
+            this.previousRAF = t
+        })
+    }
 }
-renderer.setAnimationLoop(animate)
+
+window.addEventListener("DOMContentLoaded", () => {
+    new Portfolio()
+})
