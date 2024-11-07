@@ -1,14 +1,12 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { cwd } from "node:process"
 import express from "express"
-import dotenv from "dotenv"
-import { createServer as createViteServer } from "vite"
 import { createServer as createHttpServer } from "http"
 
 const buildDir = "dist"
 const isProduction = process.env.NODE_ENV === "production"
 if (!isProduction) {
+    const dotenv = await import("dotenv")
     dotenv.config()
 }
 
@@ -18,6 +16,7 @@ async function startServer() {
     const server = createHttpServer(app) // customise the server e.g. include custom https cert
 
     if (!isProduction) {
+        const { createServer: createViteServer } = await import("vite")
         const vite = await createViteServer({
             server: {
                 middlewareMode: true,
@@ -29,7 +28,7 @@ async function startServer() {
         app.use(vite.middlewares)
 
         app.get("/", async (req, res) => {
-            let template = readFileSync(join(cwd(), "/index.html"), {
+            let template = readFileSync(join(process.cwd(), "/index.html"), {
                 encoding: "utf-8",
             })
 
@@ -37,7 +36,7 @@ async function startServer() {
             res.status(200).set({ "Content-Type": "text/html" }).end(template)
         })
     } else {
-        app.use(express.static(join(cwd(), buildDir)))
+        app.use(express.static(join(process.cwd(), buildDir)))
     }
 
     app.use(express.json())
