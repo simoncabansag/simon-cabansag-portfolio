@@ -5,12 +5,12 @@ import { createServer as createHttpServer } from "http"
 
 const buildDir = "dist"
 const isProduction = process.env.NODE_ENV === "production"
-if (!isProduction) {
-    const dotenv = await import("dotenv")
-    dotenv.config()
-}
 
-async function startServer() {
+;(async () => {
+    if (!isProduction) {
+        const dotenv = await import("dotenv")
+        dotenv.config()
+    }
     const PORT = process.env.PORT
     const app = express()
     const server = createHttpServer(app) // customise the server e.g. include custom https cert
@@ -52,6 +52,4 @@ async function startServer() {
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`)
     })
-}
-
-startServer()
+})()
