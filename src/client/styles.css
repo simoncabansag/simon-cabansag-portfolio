@@ -1,0 +1,21 @@
+html,
+body,
+div,
+ul,
+li,
+a {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+    list-style-type: none;
+    /* font-family: "Poppins"; */
+    text-decoration: none;
+} /* overrides */
+
+body {
+    overflow: hidden;
+}
+/* makes scrolling impossible */
