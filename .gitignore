@@ -25,6 +25,8 @@ dist-ssr
 .env
 client/main.js
 client/main.js.LICENSE.txt
-art-gallery.glb
 *.d.ts
 public
+firebase.ts
+firebase
+art-gallery.glb
