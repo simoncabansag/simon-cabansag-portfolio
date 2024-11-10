@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import express from "express"
 import { createServer as createHttpServer } from "http"
+import { initializeApp } from "firebase-admin/app"
+import { getAuth } from "firebase-admin/auth"
+import { cert } from "firebase-admin/app"
 
 const buildDir = "dist"
 const isProduction = process.env.NODE_ENV === "production"
@@ -11,6 +14,13 @@ const isProduction = process.env.NODE_ENV === "production"
         const dotenv = await import("dotenv")
         dotenv.config()
     }
+
+    const serviceAccount = join(process.cwd(), process.env.FIREBASE_ADMIN_KEY)
+
+    initializeApp({
+        credential: cert(serviceAccount),
+    })
+
     const PORT = process.env.PORT
     const app = express()
     const server = createHttpServer(app) // customise the server e.g. include custom https cert
@@ -39,10 +49,33 @@ const isProduction = process.env.NODE_ENV === "production"
         app.use(express.static(join(process.cwd(), buildDir)))
     }
 
-    app.use(express.json())
+    app.use((req, _res, next) => {
+        console.log(`${req.method} ${req.path}`)
+        next()
+    })
 
-    app.get("/api/hello", (_req, res) => {
-        res.json({ message: "Hello from the server!" })
+    app.use(express.json())
+    app.get("/gallery-model", (req, res) => {
+        if (!req.headers.authorization) {
+            res.status(500).json("Unauthorised!")
+        }
+
+        const token = req.headers.authorization?.split(" ")[1]
+        getAuth()
+            .verifyIdToken(token!)
+            .then(() => {
+                let template = readFileSync(
+                    join(process.cwd(), "/art-gallery.glb")
+                )
+
+                res.status(200)
+                    .set({ "Content-Type": "model/gltf-binary" })
+                    .end(template)
+            })
+            .catch((err) => {
+                console.error(err.message)
+                res.status(500).json("Couldn't verify token")
+            })
     })
 
     app.get("*", (_req, res) => {
