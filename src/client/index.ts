@@ -4,6 +4,12 @@ import { Scene } from "three/src/scenes/Scene.js"
 import { BoxGeometry } from "three/src/geometries/BoxGeometry.js"
 import { Mesh } from "three/src/objects/Mesh.js"
 import { MeshBasicMaterial } from "three/src/materials/MeshBasicMaterial.js"
+import { signInAnonymously } from "firebase/auth"
+import { firebase } from "./firebase.ts"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+
+const serverURL = "http://localhost:8124"
+const galleryModelUrl = "/gallery-model"
 
 class Portfolio {
     threejs!: WebGLRenderer
@@ -12,7 +18,8 @@ class Portfolio {
     cube!: any
     previousRAF!: number
 
-    constructor() {
+    constructor(serverAssets: { Gallery?: any }) {
+        console.log("serverAssets.Mesh: ", serverAssets.Gallery)
         this.Initialize()
         this.RAF()
     }
@@ -63,6 +70,53 @@ class Portfolio {
     }
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-    new Portfolio()
+async function LoadGalleryModel() {
+    try {
+        await signInAnonymously(firebase)
+            .then(() => {
+                console.log("signed in!")
+            })
+            .catch((error) => {
+                throw new Error(error)
+            })
+
+        const idToken = await firebase.currentUser?.getIdToken(true)
+
+        if (!idToken) {
+            throw new Error("user not authenticated")
+        }
+
+        return (
+            await fetch(serverURL + galleryModelUrl, {
+                method: "GET",
+                headers: {
+                    Accept: "model/gltf-binary",
+                    "Content-Type": "model/gltf-binary",
+                    Authorization: `Bearer ${idToken}`,
+                },
+            })
+        )?.arrayBuffer()
+    } catch (err: any) {
+        throw new Error(`failed to load model: ${err.message}`)
+    }
+}
+
+const serverAssets: { [key: string]: any } = {}
+LoadGalleryModel().then((buffer: ArrayBuffer) => {
+    new GLTFLoader().parse(
+        buffer,
+        "",
+        (gltf) => {
+            gltf.scene.name = "Gallery"
+            serverAssets[gltf.scene.name] = gltf.scene
+            window.dispatchEvent(new CustomEvent("loaded"))
+        },
+        (e) => {
+            console.error(e)
+        }
+    )
+})
+
+window.addEventListener("loaded", () => {
+    new Portfolio({})
 })
