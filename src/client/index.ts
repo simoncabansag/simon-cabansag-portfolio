@@ -20,7 +20,6 @@ class Portfolio {
     threejs!: WebGLRenderer
     scene!: Scene
     camera!: PerspectiveCamera
-    // cube!: any
     previousRAF!: number
     serverAssets!: { [key: string]: any }
 
@@ -36,10 +35,11 @@ class Portfolio {
         })
         this.threejs.setSize(window.innerWidth, window.innerHeight)
         this.threejs.setPixelRatio(window.devicePixelRatio)
-        this.threejs.domElement.className = "main-canvas"
+        this.threejs.domElement.id = "canvas"
         document
             .getElementById("portfolio")
             ?.appendChild(this.threejs.domElement)
+        this.threejs.domElement.style.display = "none"
 
         const fov = 60
         const aspect = window.innerWidth / window.innerHeight
@@ -63,20 +63,18 @@ class Portfolio {
         this.scene.add(this.serverAssets["gallery"])
         this.camera.position.set(0, 4, 7)
         controls.update()
+
+        this.threejs?.render(this.scene, this.camera)
     }
 
     RAF() {
         requestAnimationFrame((t) => {
-            if (this.previousRAF == null) {
-                this.previousRAF = t
-            }
+            if (this.scene == null || this.camera == null) return
+            if (this.previousRAF == null) this.previousRAF = t
 
-            this.RAF()
-
-            if (typeof this.scene === "undefined") return
-            if (typeof this.camera === "undefined") return
             this.threejs?.render(this.scene, this.camera)
             this.previousRAF = t
+            this.RAF()
         })
     }
 }
@@ -132,8 +130,28 @@ async function LoadServerAssets() {
     }
 }
 
+const t0 = performance.now()
+const loading = document.createElement("h3")
+loading.style.cssText = `max-width:fit-content;
+    margin: 35vh auto;
+    font-size:4rem;
+    font-family:\"Inter\"
+    `
+document.body.appendChild(loading)
+loading.innerText = "Loading..."
+
 await LoadServerAssets().then((assets: any) => {
+    loading.innerText = "Click to start"
+    loading.style.cursor = "pointer"
+    loading.style.userSelect = "none"
     new Portfolio(assets)
+    const t1 = performance.now()
+    console.warn(`Loading took ${t1 - t0}ms`)
+
+    loading.addEventListener("click", () => {
+        document.getElementById("canvas")!.style.display = "block"
+        loading.remove()
+    })
 })
 
 // window.addEventListener("DOMContentLoaded", () => {
