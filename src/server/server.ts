@@ -55,6 +55,7 @@ const isProduction = process.env.NODE_ENV === "production"
     })
 
     app.use(express.json())
+
     app.get("/gallery-model", (req, res) => {
         if (!req.headers.authorization) {
             res.status(500).json("Unauthorised!")
@@ -65,11 +66,34 @@ const isProduction = process.env.NODE_ENV === "production"
             .verifyIdToken(token!)
             .then(() => {
                 let template = readFileSync(
-                    join(process.cwd(), "/art-gallery.glb")
+                    join(process.cwd(), "/model/art-gallery.glb")
                 )
 
                 res.status(200)
                     .set({ "Content-Type": "model/gltf-binary" })
+                    .end(template)
+            })
+            .catch((err) => {
+                console.error(err.message)
+                res.status(500).json("Couldn't verify token")
+            })
+    })
+
+    app.get("/environment-mapping", (req, res) => {
+        if (!req.headers.authorization) {
+            res.status(500).json("Unauthorised!")
+        }
+
+        const token = req.headers.authorization?.split(" ")[1]
+        getAuth()
+            .verifyIdToken(token!)
+            .then(() => {
+                let template = readFileSync(
+                    join(process.cwd(), "/model/rosendal_plains_2_1k.hdr")
+                )
+
+                res.status(200)
+                    .set({ "Content-Type": "application/octet-stream" })
                     .end(template)
             })
             .catch((err) => {
