@@ -1,25 +1,31 @@
 import { WebGLRenderer } from "three/src/renderers/WebGLRenderer.js"
 import { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js"
 import { Scene } from "three/src/scenes/Scene.js"
-import { BoxGeometry } from "three/src/geometries/BoxGeometry.js"
-import { Mesh } from "three/src/objects/Mesh.js"
-import { MeshBasicMaterial } from "three/src/materials/MeshBasicMaterial.js"
 import { signInAnonymously } from "firebase/auth"
 import { firebase } from "./firebase.ts"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { DirectionalLight } from "three/src/lights/DirectionalLight.js"
+import { AmbientLight } from "three/src/lights/AmbientLight.js"
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js"
+import {
+    EquirectangularReflectionMapping,
+    LinearToneMapping,
+} from "three/src/constants.js"
 
-const serverURL = "http://localhost:8124"
 const galleryModelUrl = "/gallery-model"
+const environmentMapping = "/environment-mapping"
 
 class Portfolio {
     threejs!: WebGLRenderer
     scene!: Scene
     camera!: PerspectiveCamera
-    cube!: any
+    // cube!: any
     previousRAF!: number
+    serverAssets!: { [key: string]: any }
 
-    constructor(serverAssets: { Gallery?: any }) {
-        console.log("serverAssets.Mesh: ", serverAssets.Gallery)
+    constructor(serverAssets: { [key: string]: any }) {
+        this.serverAssets = serverAssets
         this.Initialize()
         this.RAF()
     }
@@ -35,20 +41,28 @@ class Portfolio {
             .getElementById("portfolio")
             ?.appendChild(this.threejs.domElement)
 
-        this.scene = new Scene()
-
         const fov = 60
         const aspect = window.innerWidth / window.innerHeight
         const near = 1
         const far = 10000
         this.camera = new PerspectiveCamera(fov, aspect, near, far)
+        const controls = new OrbitControls(this.camera, this.threejs.domElement)
+        this.threejs.setClearColor(0x505050)
+        this.threejs.toneMapping = LinearToneMapping
+        const ambient = new AmbientLight(0xffffff, 0.1)
+        const light = new DirectionalLight(0xffffff, 5)
+        light.position.set(0, 0, 0)
+        const env = this.serverAssets["env"]
+        env.mapping = EquirectangularReflectionMapping
 
-        const geometry = new BoxGeometry(1, 1, 1)
-        const material = new MeshBasicMaterial({ color: 0x00ff00 })
-        this.cube = new Mesh(geometry, material)
-        this.scene.add(this.cube)
-
-        this.camera.position.z = 5
+        this.scene = new Scene()
+        this.scene.background = env
+        this.scene.environment = env
+        this.scene.add(ambient)
+        this.scene.add(light)
+        this.scene.add(this.serverAssets["gallery"])
+        this.camera.position.set(0, 4, 7)
+        controls.update()
     }
 
     RAF() {
@@ -56,9 +70,6 @@ class Portfolio {
             if (this.previousRAF == null) {
                 this.previousRAF = t
             }
-
-            this.cube.rotation.x += 0.01
-            this.cube.rotation.y += 0.01
 
             this.RAF()
 
@@ -70,7 +81,7 @@ class Portfolio {
     }
 }
 
-async function LoadGalleryModel() {
+async function LoadServerAssets() {
     try {
         await signInAnonymously(firebase)
             .then(() => {
@@ -86,37 +97,43 @@ async function LoadGalleryModel() {
             throw new Error("user not authenticated")
         }
 
-        return (
-            await fetch(serverURL + galleryModelUrl, {
-                method: "GET",
-                headers: {
-                    Accept: "model/gltf-binary",
-                    "Content-Type": "model/gltf-binary",
-                    Authorization: `Bearer ${idToken}`,
-                },
+        const gallery: any = await new Promise((resolve) => {
+            const loader = new GLTFLoader()
+            loader.requestHeader = {
+                Accept: "model/gltf-binary",
+                "Content-Type": "model/gltf-binary",
+                Authorization: `Bearer ${idToken}`,
+            }
+            loader.load(galleryModelUrl, (gltf) => {
+                gltf.scene.name = "gallery"
+                resolve(gltf.scene)
             })
-        )?.arrayBuffer()
+        })
+
+        const env: any = await new Promise((resolve) => {
+            const loader = new RGBELoader()
+            loader.requestHeader = {
+                Accept: "application/octet-stream",
+                "Content-Type": "application/octet-stream",
+                Authorization: `Bearer ${idToken}`,
+            }
+            loader.load(environmentMapping, (env) => {
+                env.name = "env"
+                resolve(env)
+            })
+        })
+        const serverAssets: { [key: string]: any } = {}
+        serverAssets[gallery.name] = gallery
+        serverAssets["env"] = env
+
+        return new Promise((resolve) => resolve(serverAssets))
     } catch (err: any) {
         throw new Error(`failed to load model: ${err.message}`)
     }
 }
 
-const serverAssets: { [key: string]: any } = {}
-LoadGalleryModel().then((buffer: ArrayBuffer) => {
-    new GLTFLoader().parse(
-        buffer,
-        "",
-        (gltf) => {
-            gltf.scene.name = "Gallery"
-            serverAssets[gltf.scene.name] = gltf.scene
-            window.dispatchEvent(new CustomEvent("loaded"))
-        },
-        (e) => {
-            console.error(e)
-        }
-    )
+await LoadServerAssets().then((assets: any) => {
+    new Portfolio(assets)
 })
 
-window.addEventListener("loaded", () => {
-    new Portfolio({})
-})
+// window.addEventListener("DOMContentLoaded", () => {
