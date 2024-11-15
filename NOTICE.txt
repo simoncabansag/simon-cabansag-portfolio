@@ -1,0 +1,7 @@
+Simon Cabansag Portfolio
+
+This product includes software developed authored from (https://github.com/simondevyoutube) at (https://github.com/simondevyoutube/Quick_3D_MMORPG).
+
+
+This work contains adaptations from (https://github.com/simondevyoutube/Quick_3D_MMORPG) by 
+(https://github.com/simondevyoutube) used under MIT. This work is licensed under MIT by simoncabansag
