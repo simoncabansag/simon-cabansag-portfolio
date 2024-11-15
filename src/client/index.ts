@@ -12,6 +12,7 @@ import {
     EquirectangularReflectionMapping,
     LinearToneMapping,
 } from "three/src/constants.js"
+import Inputs from "./inputs.ts"
 
 const galleryModelUrl = "/gallery-model"
 const environmentMapping = "/environment-mapping"
@@ -65,6 +66,7 @@ class Portfolio {
         controls.update()
 
         this.threejs?.render(this.scene, this.camera)
+        new Inputs()
     }
 
     RAF() {
