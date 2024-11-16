@@ -4,7 +4,6 @@ import { Scene } from "three/src/scenes/Scene.js"
 import { signInAnonymously } from "firebase/auth"
 import { firebase } from "./firebase.ts"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { DirectionalLight } from "three/src/lights/DirectionalLight.js"
 import { AmbientLight } from "three/src/lights/AmbientLight.js"
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js"
@@ -12,7 +11,7 @@ import {
     EquirectangularReflectionMapping,
     LinearToneMapping,
 } from "three/src/constants.js"
-import Inputs from "./inputs.ts"
+import { FirstPersonCamera } from "./first-person-camera.ts"
 
 const galleryModelUrl = "/gallery-model"
 const environmentMapping = "/environment-mapping"
@@ -23,6 +22,7 @@ class Portfolio {
     camera!: PerspectiveCamera
     previousRAF!: number
     serverAssets!: { [key: string]: any }
+    firstPersonCamera!: FirstPersonCamera
 
     constructor(serverAssets: { [key: string]: any }) {
         this.serverAssets = serverAssets
@@ -44,10 +44,9 @@ class Portfolio {
 
         const fov = 60
         const aspect = window.innerWidth / window.innerHeight
-        const near = 1
+        const near = 0.8
         const far = 10000
         this.camera = new PerspectiveCamera(fov, aspect, near, far)
-        const controls = new OrbitControls(this.camera, this.threejs.domElement)
         this.threejs.setClearColor(0x505050)
         this.threejs.toneMapping = LinearToneMapping
         const ambient = new AmbientLight(0xffffff, 0.1)
@@ -61,23 +60,34 @@ class Portfolio {
         this.scene.environment = env
         this.scene.add(ambient)
         this.scene.add(light)
-        this.scene.add(this.serverAssets["gallery"])
-        this.camera.position.set(0, 4, 7)
-        controls.update()
-
+        const gallery = this.serverAssets["gallery"]
+        gallery.position.set(0, -1, 0)
+        this.scene.add(gallery)
+        this.firstPersonCamera = new FirstPersonCamera(this.camera)
         this.threejs?.render(this.scene, this.camera)
-        new Inputs()
     }
 
     RAF() {
+        const lastUpdate = 0
         requestAnimationFrame((t) => {
             if (this.scene == null || this.camera == null) return
             if (this.previousRAF == null) this.previousRAF = t
 
             this.threejs?.render(this.scene, this.camera)
+            this.Step(t - this.previousRAF, lastUpdate)
             this.previousRAF = t
             this.RAF()
         })
+    }
+
+    Step(timeElapsed: number, lastUpdate: number) {
+        const _timeElapsed = Math.min(1 / 30, timeElapsed * 0.001)
+        if (Math.abs(_timeElapsed - (lastUpdate ?? 0)) >= 0.0021) {
+            this.firstPersonCamera.deltaTime = _timeElapsed
+            this.firstPersonCamera.updateTranslation()
+            this.firstPersonCamera.updateCamera()
+            lastUpdate = _timeElapsed
+        }
     }
 }
 
@@ -155,5 +165,3 @@ await LoadServerAssets().then((assets: any) => {
         loading.remove()
     })
 })
-
-// window.addEventListener("DOMContentLoaded", () => {
