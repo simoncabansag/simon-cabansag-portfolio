@@ -54,7 +54,6 @@ class Portfolio {
         light.position.set(0, 0, 0)
         const env = this.serverAssets["env"]
         env.mapping = EquirectangularReflectionMapping
-
         this.scene = new Scene()
         this.scene.background = env
         this.scene.environment = env
@@ -84,6 +83,7 @@ class Portfolio {
         const _timeElapsed = Math.min(1 / 30, timeElapsed * 0.001)
         if (Math.abs(_timeElapsed - (lastUpdate ?? 0)) >= 0.0021) {
             this.firstPersonCamera.deltaTime = _timeElapsed
+            this.firstPersonCamera.updateHeadBob()
             this.firstPersonCamera.updateTranslation()
             this.firstPersonCamera.updateCamera()
             lastUpdate = _timeElapsed

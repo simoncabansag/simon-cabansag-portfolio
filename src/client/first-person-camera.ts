@@ -9,9 +9,15 @@ export class FirstPersonCamera {
     input = new Inputs()
     rotation = new Quaternion()
     translation = new Vector3()
+    deltaTime!: number
     phi = 0
     theta = 0
-    deltaTime!: number
+    speed = 2
+    headBobTimer = 0
+    headBobActive = false
+    headBobSpeed = 10
+    headBobHeight = 0.05
+    height = 0.3
 
     constructor(camera: PerspectiveCamera) {
         this.camera = camera
@@ -35,6 +41,9 @@ export class FirstPersonCamera {
     updateCamera() {
         this.camera.quaternion.copy(this.rotation)
         this.camera.position.copy(this.translation)
+        this.camera.position.y +=
+            this.height +
+            Math.sin(this.headBobTimer * this.headBobSpeed) * this.headBobHeight
     }
 
     updateRotation() {
@@ -67,13 +76,36 @@ export class FirstPersonCamera {
 
         const forward = new Vector3(0, 0, -1)
         forward.applyQuaternion(qx)
-        forward.multiplyScalar(forwardVelocity * this.deltaTime * 10)
+        forward.multiplyScalar(forwardVelocity * this.deltaTime * this.speed)
 
         const left = new Vector3(-1, 0, 0)
         left.applyQuaternion(qx)
-        left.multiplyScalar(strafeVelocity * this.deltaTime * 10)
+        left.multiplyScalar(strafeVelocity * this.deltaTime * this.speed)
 
         this.translation.add(forward)
         this.translation.add(left)
+
+        if (forwardVelocity != 0 || strafeVelocity != 0) {
+            this.headBobActive = true
+        }
+    }
+
+    updateHeadBob() {
+        if (this.headBobActive) {
+            const waveLength = Math.PI
+            const nextStep =
+                1 +
+                Math.floor(
+                    ((this.headBobTimer + 0.000001) * this.headBobSpeed) /
+                        waveLength
+                )
+            const nextStepTime = (nextStep * waveLength) / this.headBobSpeed
+            this.headBobTimer = Math.min(
+                this.headBobTimer + this.deltaTime,
+                nextStepTime
+            )
+
+            if (this.headBobTimer == nextStepTime) this.headBobActive = false
+        }
     }
 }
