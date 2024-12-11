@@ -11,6 +11,7 @@
         "dev": "nodemon -w src/server -x tsx src/server/server.ts"
     },
     "dependencies": {
+        "cannon-es": "^0.20.0",
         "express": "^4.21.1",
         "firebase": "^11.0.1",
         "firebase-admin": "^12.7.0",
