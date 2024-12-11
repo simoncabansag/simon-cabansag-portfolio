@@ -3,6 +3,9 @@ import { Quaternion } from "three/src/math/Quaternion.js"
 import { Vector3 } from "three/src/math/Vector3.js"
 import { clamp } from "three/src/math/MathUtils.js"
 import { Inputs } from "./inputs"
+import { CapsuleGeometry } from "three/src/geometries/CapsuleGeometry.js"
+import { MeshBasicMaterial } from "three/src/materials/MeshBasicMaterial.js"
+import { Mesh } from "three/src/objects/Mesh.js"
 
 export class FirstPersonCamera {
     camera!: PerspectiveCamera
@@ -17,10 +20,23 @@ export class FirstPersonCamera {
     headBobActive = false
     headBobSpeed = 10
     headBobHeight = 0.05
-    height = 0.3
+    height = 1.3
+    collisionGap = 0.01
+    mesh!: Mesh
 
     constructor(camera: PerspectiveCamera) {
         this.camera = camera
+
+        const _height = 0.7
+        const radius = 0.5
+
+        const user = new Mesh(
+            new CapsuleGeometry(radius, _height, 4, 8),
+            new MeshBasicMaterial({ color: 0x00ff00 })
+        )
+        user.position.y = _height / 2 + radius
+        this.mesh = user
+
         document.addEventListener(
             "mousemove",
             (e) => {
@@ -38,12 +54,21 @@ export class FirstPersonCamera {
         })
     }
 
+    update() {
+        this.updateHeadBob()
+        this.updateTranslation()
+        this.updateCamera()
+    }
+
     updateCamera() {
         this.camera.quaternion.copy(this.rotation)
         this.camera.position.copy(this.translation)
         this.camera.position.y +=
             this.height +
             Math.sin(this.headBobTimer * this.headBobSpeed) * this.headBobHeight
+        this.mesh.position.copy(this.camera.position)
+        // this.rigidBody.setNextKinematicTranslation(this.mesh.position)
+        // console.log(this.rigidBody.translation(), this.mesh.position)
     }
 
     updateRotation() {
