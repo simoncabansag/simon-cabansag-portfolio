@@ -21,9 +21,13 @@ import { Object3D, Object3DEventMap } from "three/src/core/Object3D.js"
 import * as CANNON from "cannon-es"
 import { PointerLockControlsCannon } from "./PointerLockControlsCannon.ts"
 import { PlaneGeometry } from "three/src/geometries/PlaneGeometry.js"
+import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
+import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
 
-const galleryModelUrl = "/gallery-model"
-const environmentMapping = "/environment-mapping"
+const galleryModelUrl = "/gallery-model/high"
+const environmentMapping = "/gallery-model/env"
+
+let renderer: WebGLRenderer | null = new WebGLRenderer({ antialias: true })
 
 class Portfolio {
     threejs!: WebGLRenderer
@@ -49,16 +53,19 @@ class Portfolio {
     }
 
     Initialize() {
-        this.threejs = new WebGLRenderer({
-            antialias: true,
-        })
+        this.threejs = renderer!
+        renderer = null
+
+        // renderer.setSize(window.innerWidth, window.innerHeight)
+        // renderer.setPixelRatio(window.devicePixelRatio)
+
         this.threejs.setSize(window.innerWidth, window.innerHeight)
         this.threejs.setPixelRatio(window.devicePixelRatio)
         this.threejs.domElement.id = "canvas"
+
         document
-            .getElementById("portfolio")
-            ?.appendChild(this.threejs.domElement)
-        this.threejs.domElement.style.display = "none"
+            .querySelector("canvas.webgl")
+            ?.replaceWith(this.threejs.domElement)
 
         const fov = 60
         const aspect = window.innerWidth / window.innerHeight
@@ -279,7 +286,31 @@ class Portfolio {
     }
 }
 
-async function LoadServerAssets() {
+async function LoadGallery(token: string, url: string) {
+    return await new Promise((resolve) => {
+        const loader = new GLTFLoader()
+
+        const KTX2loader = new KTX2Loader()
+        // KTX2loader.setTranscoderPath("three/examples/jsm/libs/basis/")
+        KTX2loader.setTranscoderPath(
+            "https://cdn.jsdelivr.net/gh/pmndrs/drei-assets/basis/"
+        )
+        KTX2loader.detectSupport(renderer!)
+
+        loader.requestHeader = {
+            "Accept-Encoding": "gzip",
+            Authorization: `Bearer ${token}`,
+        }
+        loader.setKTX2Loader(KTX2loader)
+        loader.setMeshoptDecoder(MeshoptDecoder)
+        loader.load(url, (gltf) => {
+            gltf.scene.name = "gallery"
+            resolve(gltf.scene)
+        })
+    })
+}
+
+async function LoadServerAssets(t0: number) {
     try {
         await signInAnonymously(firebase)
             .then(() => {
@@ -292,21 +323,13 @@ async function LoadServerAssets() {
         const idToken = await firebase.currentUser?.getIdToken(true)
 
         if (!idToken) {
-            throw new Error("user not authenticated")
+            throw new Error("User Not Authenticated")
         }
 
-        const gallery: any = await new Promise((resolve) => {
-            const loader = new GLTFLoader()
-            loader.requestHeader = {
-                Accept: "model/gltf-binary",
-                "Content-Type": "model/gltf-binary",
-                Authorization: `Bearer ${idToken}`,
-            }
-            loader.load(galleryModelUrl, (gltf) => {
-                gltf.scene.name = "gallery"
-                resolve(gltf.scene)
-            })
-        })
+        const t1 = performance.now()
+        const gallery: any = await LoadGallery(idToken, galleryModelUrl)
+        const diff = t1 - t0
+        console.warn(`Loading took ${diff}ms`)
 
         const env: any = await new Promise((resolve) => {
             const loader = new RGBELoader()
@@ -326,7 +349,7 @@ async function LoadServerAssets() {
 
         return new Promise((resolve) => resolve(serverAssets))
     } catch (err: any) {
-        throw new Error(`failed to load model: ${err.message}`)
+        throw new Error(`Failed to load model: ${err.message}`)
     }
 }
 
@@ -335,21 +358,13 @@ const loading = document.createElement("h3")
 loading.style.cssText = `max-width:fit-content;
     margin: 35vh auto;
     font-size:4rem;
-    font-family:\"Inter\"
     `
 document.body.appendChild(loading)
 loading.innerText = "Loading..."
 
-await LoadServerAssets().then((assets: any) => {
+LoadServerAssets(t0).then((assets: any) => {
     loading.innerText = "Click to start"
     loading.style.cursor = "pointer"
     loading.style.userSelect = "none"
     new Portfolio(assets)
-    const t1 = performance.now()
-    console.warn(`Loading took ${t1 - t0}ms`)
-
-    loading.addEventListener("click", () => {
-        document.getElementById("canvas")!.style.display = "block"
-        loading.remove()
-    })
 })
