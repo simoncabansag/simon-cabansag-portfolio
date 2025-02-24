@@ -11,10 +11,14 @@
         "dev": "nodemon -w src/server -x tsx src/server/server.ts"
     },
     "dependencies": {
+        "@aws-sdk/client-s3": "^3.750.0",
+        "@aws-sdk/credential-providers": "^3.750.0",
+        "@aws-sdk/types": "^3.734.0",
         "cannon-es": "^0.20.0",
         "express": "^4.21.1",
         "firebase": "^11.0.1",
         "firebase-admin": "^12.7.0",
+        "meshoptimizer": "^0.22.0",
         "three": "^0.169.0",
         "tsx": "^4.19.2"
     },
@@ -25,6 +29,6 @@
         "dotenv": "^16.4.5",
         "nodemon": "^3.1.7",
         "typescript": "^5.6.3",
-        "vite": "^5.4.10"
+        "vite": "6.1.1"
     }
 }
