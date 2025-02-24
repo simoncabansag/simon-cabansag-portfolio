@@ -11,12 +11,16 @@ a {
     font: inherit;
     vertical-align: baseline;
     list-style-type: none;
-    /* font-family: "Poppins"; */
+    font-family: "Inter";
     text-decoration: none;
 } /* overrides */
 
 body {
     overflow: hidden;
+    font-family: "Inter", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 300;
+    font-style: normal;
 }
 /* makes scrolling impossible */
 
