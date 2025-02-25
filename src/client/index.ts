@@ -11,7 +11,7 @@ import {
     EquirectangularReflectionMapping,
     LinearToneMapping,
 } from "three/src/constants.js"
-import { FirstPersonCamera } from "./first-person-camera.ts"
+// import { FirstPersonCamera } from "./first-person-camera.ts"
 import { Mesh } from "three/src/objects/Mesh.js"
 import { MeshStandardMaterial } from "three/src/materials/MeshStandardMaterial.js"
 import { BoxGeometry } from "three/src/geometries/BoxGeometry.js"
@@ -25,9 +25,10 @@ import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
 
 const galleryModelUrl = "/gallery-model/high"
+const galleryModelLowUrl = "/gallery-model/low"
 const environmentMapping = "/gallery-model/env"
 
-let renderer: WebGLRenderer | null = new WebGLRenderer({ antialias: true })
+let renderer: WebGLRenderer = new WebGLRenderer({ antialias: true })
 
 class Portfolio {
     threejs!: WebGLRenderer
@@ -35,7 +36,7 @@ class Portfolio {
     camera!: PerspectiveCamera
     previousRAF!: number
     serverAssets!: { [key: string]: any }
-    firstPersonCamera!: FirstPersonCamera
+    // firstPersonCamera!: FirstPersonCamera
     world!: CANNON.World
     controls!: PointerLockControlsCannon
     material: any
@@ -53,8 +54,8 @@ class Portfolio {
     }
 
     Initialize() {
-        this.threejs = renderer!
-        renderer = null
+        this.threejs = renderer
+        // renderer = null
 
         // renderer.setSize(window.innerWidth, window.innerHeight)
         // renderer.setPixelRatio(window.devicePixelRatio)
@@ -91,6 +92,26 @@ class Portfolio {
         this.scene.add(gallery)
 
         this.LoadCollisions()
+
+        const playerBody = new CANNON.Body({
+            mass: 1,
+            material: this.physicsMaterial,
+        })
+        playerBody.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 1.2, 0.5)))
+        playerBody.position.set(0, 5, 0)
+        playerBody.linearDamping = 0.9
+        this.world.addBody(playerBody)
+
+        this.controls = new PointerLockControlsCannon(
+            this.camera,
+            playerBody,
+            this.gravity
+        )
+
+        this.scene.add(this.controls.getObject())
+        this.controls.enabled = true
+
+        this.threejs?.render(this.scene, this.camera)
     }
 
     LoadCollisions() {
@@ -229,26 +250,6 @@ class Portfolio {
         this.world.addBody(westWallBody)
         this.world.addBody(eastWallBody)
         this.world.addBody(southWallBody)
-
-        const playerBody = new CANNON.Body({
-            mass: 1,
-            material: this.physicsMaterial,
-        })
-        playerBody.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 1.2, 0.5)))
-        playerBody.position.set(0, 5, 0)
-        playerBody.linearDamping = 0.9
-        this.world.addBody(playerBody)
-
-        this.controls = new PointerLockControlsCannon(
-            this.camera,
-            playerBody,
-            this.gravity
-        )
-
-        this.scene.add(this.controls.getObject())
-        this.controls.enabled = true
-
-        this.threejs?.render(this.scene, this.camera)
     }
 
     RAF() {
@@ -327,7 +328,13 @@ async function LoadServerAssets(t0: number) {
         }
 
         const t1 = performance.now()
-        const gallery: any = await LoadGallery(idToken, galleryModelUrl)
+        let finalGallery: any
+        const { isHighEndGpu } = await import("./getUnmaskedGpu")
+        if (isHighEndGpu(renderer.getContext())) {
+            finalGallery = await LoadGallery(idToken, galleryModelUrl)
+        } else {
+            finalGallery = await LoadGallery(idToken, galleryModelLowUrl)
+        }
         const diff = t1 - t0
         console.warn(`Loading took ${diff}ms`)
 
@@ -344,7 +351,7 @@ async function LoadServerAssets(t0: number) {
             })
         })
         const serverAssets: { [key: string]: any } = {}
-        serverAssets[gallery.name] = gallery
+        serverAssets[finalGallery.name] = finalGallery
         serverAssets["env"] = env
 
         return new Promise((resolve) => resolve(serverAssets))

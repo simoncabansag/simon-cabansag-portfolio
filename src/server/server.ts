@@ -5,18 +5,30 @@ import { createServer as createHttpServer } from "http"
 import { initializeApp } from "firebase-admin/app"
 import { getAuth } from "firebase-admin/auth"
 import { cert } from "firebase-admin/app"
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3"
+import { fromEnv } from "@aws-sdk/credential-providers"
+import { Readable } from "stream"
+
+// need to add this for vite development
+const isProduction = process.env.NODE_ENV === "production"
+if (!isProduction) {
+    const dotenv = await import("dotenv")
+    dotenv.config()
+}
+const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_KEY)
+const bucketName = process.env.R2_BUCKET_NAME
+const r2client = new S3Client({
+    region: "auto",
+    endpoint: process.env.R2_ENDPOINT,
+    credentials: fromEnv(),
+})
 
 const buildDir = "dist"
-const isProduction = process.env.NODE_ENV === "production"
+const galleryUrl = "art-gallery.glb.gz"
+const galleryLowUrl = "art-gallery-low.glb.gz"
+const galleryEnvUrl = "rosendal_plains_2_1k.hdr.gz"
 
 ;(async () => {
-    if (!isProduction) {
-        const dotenv = await import("dotenv")
-        dotenv.config()
-    }
-
-    const serviceAccount = join(process.cwd(), process.env.FIREBASE_ADMIN_KEY)
-
     initializeApp({
         credential: cert(serviceAccount),
     })
@@ -56,7 +68,7 @@ const isProduction = process.env.NODE_ENV === "production"
 
     app.use(express.json())
 
-    app.get("/gallery-model", (req, res) => {
+    app.get("/gallery-model/:resource", (req, res) => {
         if (!req.headers.authorization) {
             res.status(500).json("Unauthorised!")
         }
@@ -64,41 +76,40 @@ const isProduction = process.env.NODE_ENV === "production"
         const token = req.headers.authorization?.split(" ")[1]
         getAuth()
             .verifyIdToken(token!)
-            .then(() => {
-                let template = readFileSync(
-                    join(process.cwd(), "/model/art-gallery.glb")
-                )
+            .then(async () => {
+                let modelUrl
+                switch (req.params.resource) {
+                    case "low":
+                        modelUrl = galleryLowUrl
+                        break
+                    case "high":
+                        modelUrl = galleryUrl
+                        break
+                    case "env":
+                        modelUrl = galleryEnvUrl
+                        break
+                    default:
+                        throw new Error()
+                }
 
-                res.status(200)
-                    .set({ "Content-Type": "model/gltf-binary" })
-                    .end(template)
+                const command = new GetObjectCommand({
+                    Bucket: bucketName,
+                    Key: modelUrl,
+                })
+
+                const data = await r2client.send(command)
+                res.status(200).set({
+                    "Content-Type": "application/gzip",
+                    "Content-Encoding": "gzip",
+                })
+                ;(data.Body as Readable).pipe(res)
+                ;(data.Body as Readable).on("error", () => {
+                    res.status(500).json({ error: "Failed to stream file" })
+                })
             })
             .catch((err) => {
                 console.error(err.message)
-                res.status(500).json("Couldn't verify token")
-            })
-    })
-
-    app.get("/environment-mapping", (req, res) => {
-        if (!req.headers.authorization) {
-            res.status(500).json("Unauthorised!")
-        }
-
-        const token = req.headers.authorization?.split(" ")[1]
-        getAuth()
-            .verifyIdToken(token!)
-            .then(() => {
-                let template = readFileSync(
-                    join(process.cwd(), "/model/rosendal_plains_2_1k.hdr")
-                )
-
-                res.status(200)
-                    .set({ "Content-Type": "application/octet-stream" })
-                    .end(template)
-            })
-            .catch((err) => {
-                console.error(err.message)
-                res.status(500).json("Couldn't verify token")
+                res.status(500).json({ error: "Failed to fetch file" })
             })
     })
 
