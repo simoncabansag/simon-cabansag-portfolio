@@ -13,21 +13,27 @@ import {
 // import { FirstPersonCamera } from "./first-person-camera.ts"
 import { Mesh } from "three/src/objects/Mesh.js"
 import { MeshStandardMaterial } from "three/src/materials/MeshStandardMaterial.js"
-import { BoxGeometry } from "three/src/geometries/BoxGeometry.js"
-import { SphereGeometry } from "three/src/geometries/SphereGeometry.js"
-import { Object3D, Object3DEventMap } from "three/src/core/Object3D.js"
+import { Object3DEventMap } from "three/src/core/Object3D.js"
 import { DataTexture } from "three/src/textures/DataTexture.js"
 import { Group } from "three/src/objects/Group.js"
 // import { OrbitControls } from "three/examples/jsm/Addons.js"
 import * as CANNON from "cannon-es"
 import { PointerLockControlsCannon } from "./PointerLockControlsCannon.ts"
 import { PlaneGeometry } from "three/src/geometries/PlaneGeometry.js"
-import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
+
+interface serverAssets {
+    env: DataTexture
+    warnings: Group<Object3DEventMap>
+    overlays: Group<Object3DEventMap>
+    gallery: Group<Object3DEventMap>
+}
 
 const galleryModelUrl = "/gallery-model/high"
 const galleryModelLowUrl = "/gallery-model/low"
 const envMapName = "rosendal_plains_2_1k.hdr"
+const overlaysUrl = "/overlays.glb"
+const warningsUrl = "/warnings.glb"
 
 let renderer: WebGLRenderer = new WebGLRenderer({ antialias: true })
 
@@ -36,19 +42,15 @@ class Portfolio {
     scene!: Scene
     camera!: PerspectiveCamera
     previousRAF!: number
-    serverAssets!: { [key: string]: any }
+    serverAssets!: serverAssets
     // firstPersonCamera!: FirstPersonCamera
     world!: CANNON.World
     controls!: PointerLockControlsCannon
     material: any
     gravity = -9.81
     physicsMaterial: any
-    balls: CANNON.Body[] = []
-    ballMeshes: Mesh<SphereGeometry, any, Object3DEventMap>[] = []
-    boxes: CANNON.Body[] = []
-    boxMeshes: Mesh<BoxGeometry, any, Object3DEventMap>[] = []
 
-    constructor(serverAssets: { [key: string]: any }) {
+    constructor(serverAssets: serverAssets) {
         this.serverAssets = serverAssets
         this.Initialize()
         this.RAF()
@@ -81,16 +83,17 @@ class Portfolio {
         const light = new DirectionalLight(0xffffff, 5)
         light.position.set(0, 0, 0)
         this.scene = new Scene()
-        const env = this.serverAssets["env"]
+        const env = this.serverAssets.env
         env.mapping = EquirectangularReflectionMapping
         this.scene.background = env
         this.scene.environment = env
         this.scene.add(ambient)
         this.scene.add(light)
 
-        const gallery: Object3D<Object3DEventMap> = this.serverAssets["gallery"]
         // const orbit = new OrbitControls(this.camera, this.threejs.domElement)
-        this.scene.add(gallery)
+        this.scene.add(this.serverAssets.warnings)
+        this.scene.add(this.serverAssets.overlays)
+        this.scene.add(this.serverAssets.gallery)
 
         this.LoadCollisions()
 
@@ -288,13 +291,16 @@ class Portfolio {
     }
 }
 
-async function LoadGallery(
-    token: string,
-    url: string
+async function LoadAsset(
+    token: string | null = null,
+    url: string,
+    name: string
 ): Promise<Group<Object3DEventMap>> {
-    return await new Promise((resolve) => {
+    return await new Promise(async (resolve) => {
         const loader = new GLTFLoader()
-
+        const { KTX2Loader } = await import(
+            "three/examples/jsm/loaders/KTX2Loader.js"
+        )
         const KTX2loader = new KTX2Loader()
         // KTX2loader.setTranscoderPath("three/examples/jsm/libs/basis/")
         KTX2loader.setTranscoderPath(
@@ -302,16 +308,19 @@ async function LoadGallery(
         )
         KTX2loader.detectSupport(renderer!)
 
-        loader.requestHeader = {
-            "Accept-Encoding": "gzip",
-            Authorization: `Bearer ${token}`,
+        if (token) {
+            loader.requestHeader = {
+                "Accept-Encoding": "gzip",
+                Authorization: `Bearer ${token}`,
+            }
         }
         loader.setKTX2Loader(KTX2loader)
         loader.setMeshoptDecoder(MeshoptDecoder)
         loader.load(url, (gltf) => {
-            gltf.scene.name = "gallery"
+            gltf.scene.name = name
             resolve(gltf.scene)
         })
+        KTX2loader.dispose()
     })
 }
 
@@ -335,9 +344,17 @@ async function LoadServerAssets(t0: number) {
         let finalGallery: Group<Object3DEventMap>
         const { isHighEndGpu } = await import("./getUnmaskedGpu")
         if (isHighEndGpu(renderer.getContext())) {
-            finalGallery = await LoadGallery(idToken, galleryModelUrl)
+            finalGallery = await LoadAsset(
+                idToken,
+                galleryModelUrl,
+                "galleryHigh"
+            )
         } else {
-            finalGallery = await LoadGallery(idToken, galleryModelLowUrl)
+            finalGallery = await LoadAsset(
+                idToken,
+                galleryModelLowUrl,
+                "galleryLow"
+            )
         }
         const env: DataTexture = await new Promise(async (resolve) => {
             const { RGBELoader } = await import(
@@ -348,9 +365,17 @@ async function LoadServerAssets(t0: number) {
                 resolve(env)
             })
         })
-        const serverAssets: { [key: string]: any } = {}
-        serverAssets[finalGallery.name] = finalGallery
-        serverAssets["env"] = env
+
+        const warnings = await LoadAsset(null, warningsUrl, "warnings")
+        const overlays = await LoadAsset(null, overlaysUrl, "overlays")
+
+        const serverAssets = {
+            gallery: finalGallery,
+            env: env,
+            warnings: warnings,
+            overlays: overlays,
+        } satisfies serverAssets
+
         const diff = t1 - t0
         console.warn(`Loading took ${diff}ms`)
 
