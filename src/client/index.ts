@@ -6,7 +6,6 @@ import { firebase } from "./firebase.ts"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { DirectionalLight } from "three/src/lights/DirectionalLight.js"
 import { AmbientLight } from "three/src/lights/AmbientLight.js"
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js"
 import {
     EquirectangularReflectionMapping,
     LinearToneMapping,
@@ -17,6 +16,8 @@ import { MeshStandardMaterial } from "three/src/materials/MeshStandardMaterial.j
 import { BoxGeometry } from "three/src/geometries/BoxGeometry.js"
 import { SphereGeometry } from "three/src/geometries/SphereGeometry.js"
 import { Object3D, Object3DEventMap } from "three/src/core/Object3D.js"
+import { DataTexture } from "three/src/textures/DataTexture.js"
+import { Group } from "three/src/objects/Group.js"
 // import { OrbitControls } from "three/examples/jsm/Addons.js"
 import * as CANNON from "cannon-es"
 import { PointerLockControlsCannon } from "./PointerLockControlsCannon.ts"
@@ -26,7 +27,7 @@ import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
 
 const galleryModelUrl = "/gallery-model/high"
 const galleryModelLowUrl = "/gallery-model/low"
-const environmentMapping = "/gallery-model/env"
+const envMapName = "rosendal_plains_2_1k.hdr"
 
 let renderer: WebGLRenderer = new WebGLRenderer({ antialias: true })
 
@@ -287,7 +288,10 @@ class Portfolio {
     }
 }
 
-async function LoadGallery(token: string, url: string) {
+async function LoadGallery(
+    token: string,
+    url: string
+): Promise<Group<Object3DEventMap>> {
     return await new Promise((resolve) => {
         const loader = new GLTFLoader()
 
@@ -328,24 +332,18 @@ async function LoadServerAssets(t0: number) {
         }
 
         const t1 = performance.now()
-        let finalGallery: any
+        let finalGallery: Group<Object3DEventMap>
         const { isHighEndGpu } = await import("./getUnmaskedGpu")
         if (isHighEndGpu(renderer.getContext())) {
             finalGallery = await LoadGallery(idToken, galleryModelUrl)
         } else {
             finalGallery = await LoadGallery(idToken, galleryModelLowUrl)
         }
-        const diff = t1 - t0
-        console.warn(`Loading took ${diff}ms`)
-
-        const env: any = await new Promise((resolve) => {
-            const loader = new RGBELoader()
-            loader.requestHeader = {
-                Accept: "application/octet-stream",
-                "Content-Type": "application/octet-stream",
-                Authorization: `Bearer ${idToken}`,
-            }
-            loader.load(environmentMapping, (env) => {
+        const env: DataTexture = await new Promise(async (resolve) => {
+            const { RGBELoader } = await import(
+                "three/examples/jsm/loaders/RGBELoader.js"
+            )
+            new RGBELoader().load(envMapName, (env) => {
                 env.name = "env"
                 resolve(env)
             })
@@ -353,6 +351,8 @@ async function LoadServerAssets(t0: number) {
         const serverAssets: { [key: string]: any } = {}
         serverAssets[finalGallery.name] = finalGallery
         serverAssets["env"] = env
+        const diff = t1 - t0
+        console.warn(`Loading took ${diff}ms`)
 
         return new Promise((resolve) => resolve(serverAssets))
     } catch (err: any) {

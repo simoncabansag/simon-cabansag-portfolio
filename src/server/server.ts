@@ -26,7 +26,6 @@ const r2client = new S3Client({
 const buildDir = "dist"
 const galleryUrl = "art-gallery.glb.gz"
 const galleryLowUrl = "art-gallery-low.glb.gz"
-const galleryEnvUrl = "rosendal_plains_2_1k.hdr.gz"
 
 ;(async () => {
     initializeApp({
@@ -84,9 +83,6 @@ const galleryEnvUrl = "rosendal_plains_2_1k.hdr.gz"
                         break
                     case "high":
                         modelUrl = galleryUrl
-                        break
-                    case "env":
-                        modelUrl = galleryEnvUrl
                         break
                     default:
                         throw new Error()
