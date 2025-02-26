@@ -1,3 +1,7 @@
+* {
+    overscroll-behavior: none;
+}
+
 html,
 body,
 div,
@@ -15,14 +19,24 @@ a {
     text-decoration: none;
 } /* overrides */
 
+html,
 body {
     overflow: hidden;
+    height: 100%;
+    touch-action: none;
+}
+/* makes scrolling impossible */
+
+body {
     font-family: "Inter", sans-serif;
     font-optical-sizing: auto;
     font-weight: 300;
     font-style: normal;
 }
-/* makes scrolling impossible */
+
+body canvas {
+    touch-action: none;
+}
 
 .loading {
     max-width: fit-content;

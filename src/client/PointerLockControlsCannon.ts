@@ -1,31 +1,29 @@
-import * as THREE from "three"
-import * as CANNON from "cannon-es"
+import { EventDispatcher, BaseEvent } from "three/src/core/EventDispatcher.js"
+import { Vector3 } from "three/src/math/Vector3.js"
+import { Euler } from "three/src/math/Euler.js"
+import { Quaternion } from "three/src/math/Quaternion.js"
+import { Object3DEventMap, Object3D } from "three/src/core/Object3D.js"
+import { Vec3 } from "cannon-es"
+import { Inputs } from "./inputs"
 
-/**
- * @author mrdoob / https://github.com/mrdoob
- * @author schteppe / https://github.com/schteppe
- */
-class PointerLockControlsCannon extends THREE.EventDispatcher<{
-    [key: string]: THREE.BaseEvent<string>
+class PointerLockControlsCannon extends EventDispatcher<{
+    [key: string]: BaseEvent<string>
 }> {
     enabled: boolean
     cannonBody: any
     velocityFactor: number
     jumpVelocity: number
-    pitchObject: THREE.Object3D<THREE.Object3DEventMap>
-    yawObject: THREE.Object3D<THREE.Object3DEventMap>
-    quaternion: THREE.Quaternion
-    moveForward: boolean
-    moveBackward: boolean
-    moveLeft: boolean
-    moveRight: boolean
-    canJump: boolean
+    pitchObject: Object3D<Object3DEventMap>
+    yawObject: Object3D<Object3DEventMap>
+    quaternion: Quaternion
     velocity: any
-    inputVelocity: THREE.Vector3
-    euler: THREE.Euler
+    inputVelocity: Vector3
+    euler: Euler
     isLocked!: boolean
     lockEvent: { type: "lock" }
     unlockEvent: { type: string }
+    inputs: Inputs
+
     constructor(camera: any, cannonBody: any, gravity: number) {
         super()
 
@@ -34,20 +32,16 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
         this.cannonBody.position
         this.velocityFactor = 0.2
         this.jumpVelocity = Math.abs(gravity)
-        this.pitchObject = new THREE.Object3D()
+        this.pitchObject = new Object3D()
         this.pitchObject.add(camera)
-        this.yawObject = new THREE.Object3D()
+        this.yawObject = new Object3D()
         this.yawObject.position.y = 2
         this.yawObject.add(this.pitchObject)
-        this.quaternion = new THREE.Quaternion()
-        this.moveForward = false
-        this.moveBackward = false
-        this.moveLeft = false
-        this.moveRight = false
-        this.canJump = false
+        this.quaternion = new Quaternion()
+        this.inputs = new Inputs()
 
-        const contactNormal = new CANNON.Vec3() // Normal in the contact, pointing *out* of whatever the player touched
-        const upAxis = new CANNON.Vec3(0, 1, 0)
+        const contactNormal = new Vec3() // Normal in the contact, pointing *out* of whatever the player touched
+        const upAxis = new Vec3(0, 1, 0)
         this.cannonBody.addEventListener(
             "collide",
             (event: { contact: any }) => {
@@ -66,7 +60,7 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
                 // If contactNormal.dot(upAxis) is between 0 and 1, we know that the contact normal is somewhat in the up direction.
                 if (contactNormal.dot(upAxis) > 0.5) {
                     // Use a "good" threshold value between 0 and 1 here!
-                    this.canJump = true
+                    this.inputs.canJump = true
                 }
             }
         )
@@ -74,8 +68,8 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
         this.velocity = this.cannonBody.velocity
 
         // Moves the camera to the cannon.js object position and adds velocity to the object if the run key is down
-        this.inputVelocity = new THREE.Vector3()
-        this.euler = new THREE.Euler()
+        this.inputVelocity = new Vector3()
+        this.euler = new Euler()
 
         this.lockEvent = { type: "lock" }
         this.unlockEvent = { type: "unlock" }
@@ -84,15 +78,29 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
     }
 
     connect() {
-        document.addEventListener("mousemove", this.onMouseMove)
+        document.addEventListener("mousemove", (e) => {
+            this.inputs.onPointerMove(e)
+            this.updateCamera()
+        })
+        document.addEventListener("touchmove", (e) => {
+            this.inputs.onPointerMove(e)
+            this.updateCamera()
+        })
+        document.addEventListener("touchstart", (e) =>
+            this.inputs.touchStart(e)
+        )
+        document.addEventListener("touchend", (e) => this.inputs.touchEnd(e))
         document.addEventListener("pointerlockchange", this.onPointerlockChange)
         document.addEventListener("pointerlockerror", this.onPointerlockError)
-        document.addEventListener("keydown", this.onKeyDown)
-        document.addEventListener("keyup", this.onKeyUp)
+        document.addEventListener("keydown", this.inputs.onKeyDown)
+        document.addEventListener("keyup", this.inputs.onKeyUp)
     }
 
     disconnect() {
-        document.removeEventListener("mousemove", this.onMouseMove)
+        document.removeEventListener("mousemove", this.inputs.onPointerMove)
+        document.removeEventListener("touchmove", this.inputs.onPointerMove)
+        document.removeEventListener("touchstart", this.inputs.onPointerMove)
+        document.removeEventListener("touchend", this.inputs.onPointerMove)
         document.removeEventListener(
             "pointerlockchange",
             this.onPointerlockChange
@@ -101,8 +109,8 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
             "pointerlockerror",
             this.onPointerlockError
         )
-        document.removeEventListener("keydown", this.onKeyDown)
-        document.removeEventListener("keyup", this.onKeyUp)
+        document.removeEventListener("keydown", this.inputs.onKeyDown)
+        document.removeEventListener("keyup", this.inputs.onKeyUp)
     }
 
     dispose() {
@@ -135,13 +143,10 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
         )
     }
 
-    onMouseMove = (event: { movementX: any; movementY: any }) => {
-        if (!this.enabled) {
-            return
-        }
+    updateCamera = () => {
+        if (!this.enabled) return
 
-        const { movementX, movementY } = event
-
+        const { movementX, movementY } = this.inputs.curr
         this.yawObject.rotation.y -= movementX * 0.002
         this.pitchObject.rotation.x -= movementY * 0.002
 
@@ -151,72 +156,19 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
         )
     }
 
-    onKeyDown = (event: { code: any }) => {
-        switch (event.code) {
-            case "KeyW":
-            case "ArrowUp":
-                this.moveForward = true
-                break
-
-            case "KeyA":
-            case "ArrowLeft":
-                this.moveLeft = true
-                break
-
-            case "KeyS":
-            case "ArrowDown":
-                this.moveBackward = true
-                break
-
-            case "KeyD":
-            case "ArrowRight":
-                this.moveRight = true
-                break
-
-            case "Space":
-                if (this.canJump) {
-                    this.velocity.y = this.jumpVelocity
-                }
-                this.canJump = false
-                break
-        }
-    }
-
-    onKeyUp = (event: { code: any }) => {
-        switch (event.code) {
-            case "KeyW":
-            case "ArrowUp":
-                this.moveForward = false
-                break
-
-            case "KeyA":
-            case "ArrowLeft":
-                this.moveLeft = false
-                break
-
-            case "KeyS":
-            case "ArrowDown":
-                this.moveBackward = false
-                break
-
-            case "KeyD":
-            case "ArrowRight":
-                this.moveRight = false
-                break
-        }
-    }
-
     getObject() {
         return this.yawObject
     }
 
-    // getDirection() {
-    //     const vector = new CANNON.Vec3(0, 0, -1)
-    //     vector.applyQuaternion(this.quaternion)
-    //     return vector
-    // }
-
     update(delta: number) {
+        this.updateTranslation(delta)
+    }
+
+    // updateCamera() {}
+    // updateTranslation() {}
+    // updateHeadBob() {}
+
+    updateTranslation(delta: number) {
         if (this.enabled === false) {
             return
         }
@@ -226,17 +178,17 @@ class PointerLockControlsCannon extends THREE.EventDispatcher<{
 
         this.inputVelocity.set(0, 0, 0)
 
-        if (this.moveForward) {
+        if (this.inputs.moveForward) {
             this.inputVelocity.z = -this.velocityFactor * delta
         }
-        if (this.moveBackward) {
+        if (this.inputs.moveBackward) {
             this.inputVelocity.z = this.velocityFactor * delta
         }
 
-        if (this.moveLeft) {
+        if (this.inputs.moveLeft) {
             this.inputVelocity.x = -this.velocityFactor * delta
         }
-        if (this.moveRight) {
+        if (this.inputs.moveRight) {
             this.inputVelocity.x = this.velocityFactor * delta
         }
 
