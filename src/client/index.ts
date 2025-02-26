@@ -1,23 +1,18 @@
 import { WebGLRenderer } from "three/src/renderers/WebGLRenderer.js"
 import { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js"
 import { Scene } from "three/src/scenes/Scene.js"
-import { signInAnonymously } from "firebase/auth"
-import { firebase } from "./firebase.ts"
 import { Interaction } from "./interaction.ts"
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { DirectionalLight } from "three/src/lights/DirectionalLight.js"
 import { AmbientLight } from "three/src/lights/AmbientLight.js"
 import {
     EquirectangularReflectionMapping,
     LinearToneMapping,
 } from "three/src/constants.js"
-// import { FirstPersonCamera } from "./first-person-camera.ts"
 import { Mesh } from "three/src/objects/Mesh.js"
 import { MeshStandardMaterial } from "three/src/materials/MeshStandardMaterial.js"
-import { Object3D, Object3DEventMap } from "three/src/core/Object3D.js"
+import { Object3DEventMap } from "three/src/core/Object3D.js"
 import { DataTexture } from "three/src/textures/DataTexture.js"
 import { Group } from "three/src/objects/Group.js"
-// import { OrbitControls } from "three/examples/jsm/Addons.js"
 import {
     World,
     Body,
@@ -30,9 +25,7 @@ import {
 } from "cannon-es"
 import { PointerLockControlsCannon } from "./PointerLockControlsCannon.ts"
 import { PlaneGeometry } from "three/src/geometries/PlaneGeometry.js"
-import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
 import { paintings, overlays, intersects } from "./paintings.ts"
-import { gsap } from "gsap"
 import { Tour } from "./tour.ts"
 
 interface serverAssets {
@@ -56,7 +49,6 @@ class Portfolio {
     camera!: PerspectiveCamera
     previousRAF!: number
     serverAssets!: serverAssets
-    // firstPersonCamera!: FirstPersonCamera
     interaction!: Interaction
     world!: World
     controls!: PointerLockControlsCannon
@@ -72,7 +64,6 @@ class Portfolio {
 
     Initialize() {
         this.threejs = renderer
-        // renderer = null
 
         // renderer.setSize(window.innerWidth, window.innerHeight)
         // renderer.setPixelRatio(window.devicePixelRatio)
@@ -317,14 +308,6 @@ class Portfolio {
             this.world.step(_timeElapsed, lastUpdate)
             this.controls.update(_timeElapsed)
             this.interaction.castRay()
-            // console.log(
-            //     this.controls.moveForward,
-            //     this.controls.moveBackward,
-            //     this.controls.moveLeft,
-            //     this.controls.moveRight
-            // )
-            // this.firstPersonCamera.deltaTime = _timeElapsed
-            // this.firstPersonCamera.update()
             lastUpdate = _timeElapsed
         }
     }
@@ -336,10 +319,17 @@ async function LoadAsset(
     name: string
 ): Promise<Group<Object3DEventMap>> {
     return await new Promise(async (resolve) => {
-        const loader = new GLTFLoader()
+        const { GLTFLoader } = await import(
+            "three/examples/jsm/loaders/GLTFLoader.js"
+        )
         const { KTX2Loader } = await import(
             "three/examples/jsm/loaders/KTX2Loader.js"
         )
+        const { MeshoptDecoder } = await import(
+            "meshoptimizer/meshopt_decoder.module.js"
+        )
+
+        const loader = new GLTFLoader()
         const KTX2loader = new KTX2Loader()
         // KTX2loader.setTranscoderPath("three/examples/jsm/libs/basis/")
         KTX2loader.setTranscoderPath(
@@ -364,6 +354,8 @@ async function LoadAsset(
 }
 
 async function LoadServerAssets(t0: number) {
+    const { signInAnonymously } = await import("firebase/auth")
+    const { firebase } = await import("./firebase.ts")
     try {
         await signInAnonymously(firebase)
             .then(() => {
