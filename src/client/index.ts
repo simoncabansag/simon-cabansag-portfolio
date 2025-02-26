@@ -3,6 +3,7 @@ import { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js"
 import { Scene } from "three/src/scenes/Scene.js"
 import { signInAnonymously } from "firebase/auth"
 import { firebase } from "./firebase.ts"
+import { Interaction } from "./interaction.ts"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { DirectionalLight } from "three/src/lights/DirectionalLight.js"
 import { AmbientLight } from "three/src/lights/AmbientLight.js"
@@ -13,14 +14,25 @@ import {
 // import { FirstPersonCamera } from "./first-person-camera.ts"
 import { Mesh } from "three/src/objects/Mesh.js"
 import { MeshStandardMaterial } from "three/src/materials/MeshStandardMaterial.js"
-import { Object3DEventMap } from "three/src/core/Object3D.js"
+import { Object3D, Object3DEventMap } from "three/src/core/Object3D.js"
 import { DataTexture } from "three/src/textures/DataTexture.js"
 import { Group } from "three/src/objects/Group.js"
 // import { OrbitControls } from "three/examples/jsm/Addons.js"
-import * as CANNON from "cannon-es"
+import {
+    World,
+    Body,
+    Box,
+    Vec3,
+    SplitSolver,
+    Material,
+    GSSolver,
+    ContactMaterial,
+} from "cannon-es"
 import { PointerLockControlsCannon } from "./PointerLockControlsCannon.ts"
 import { PlaneGeometry } from "three/src/geometries/PlaneGeometry.js"
 import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
+import { paintings, overlays, intersects } from "./paintings.ts"
+import { gsap } from "gsap"
 
 interface serverAssets {
     env: DataTexture
@@ -44,7 +56,8 @@ class Portfolio {
     previousRAF!: number
     serverAssets!: serverAssets
     // firstPersonCamera!: FirstPersonCamera
-    world!: CANNON.World
+    interaction!: Interaction
+    world!: World
     controls!: PointerLockControlsCannon
     material: any
     gravity = -9.81
@@ -83,6 +96,39 @@ class Portfolio {
         const light = new DirectionalLight(0xffffff, 5)
         light.position.set(0, 0, 0)
         this.scene = new Scene()
+        this.scene.add(this.serverAssets.warnings)
+        this.scene.add(this.serverAssets.overlays)
+        this.scene.add(this.serverAssets.gallery)
+
+        const iObjects: MeshStandardMaterial[] = []
+        this.serverAssets.gallery.children.forEach((p) => {
+            if (paintings.includes(p.name)) {
+                p.visible = true
+                const m: Mesh = p as Mesh
+                const mm: MeshStandardMaterial =
+                    m.material as MeshStandardMaterial
+                mm.transparent = true
+                mm.opacity = 1
+            }
+            if (intersects.includes(p.name)) {
+                const m: Mesh = p as Mesh
+                const mm: MeshStandardMaterial =
+                    m.material as MeshStandardMaterial
+                iObjects.push(mm)
+            }
+        })
+
+        this.serverAssets.overlays.children.forEach((p) => {
+            if (overlays.includes(p.name)) {
+                p.visible = true
+                const m: Mesh = p as Mesh
+                const mm: MeshStandardMaterial =
+                    m.material as MeshStandardMaterial
+                mm.transparent = true
+                mm.opacity = 0
+            }
+        })
+        this.interaction = new Interaction(this.camera, this.scene, iObjects)
         const env = this.serverAssets.env
         env.mapping = EquirectangularReflectionMapping
         this.scene.background = env
@@ -91,17 +137,14 @@ class Portfolio {
         this.scene.add(light)
 
         // const orbit = new OrbitControls(this.camera, this.threejs.domElement)
-        this.scene.add(this.serverAssets.warnings)
-        this.scene.add(this.serverAssets.overlays)
-        this.scene.add(this.serverAssets.gallery)
 
         this.LoadCollisions()
 
-        const playerBody = new CANNON.Body({
+        const playerBody = new Body({
             mass: 1,
             material: this.physicsMaterial,
         })
-        playerBody.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 1.2, 0.5)))
+        playerBody.addShape(new Box(new Vec3(0.5, 1.2, 0.5)))
         playerBody.position.set(0, 5, 0)
         playerBody.linearDamping = 0.9
         this.world.addBody(playerBody)
@@ -119,16 +162,16 @@ class Portfolio {
     }
 
     LoadCollisions() {
-        this.world = new CANNON.World()
+        this.world = new World()
         this.world.defaultContactMaterial.contactEquationStiffness = 1e9
         this.world.defaultContactMaterial.contactEquationRelaxation = 4
-        const solver = new CANNON.GSSolver()
+        const solver = new GSSolver()
         solver.iterations = 7
         solver.tolerance = 0.1
-        this.world.solver = new CANNON.SplitSolver(solver)
+        this.world.solver = new SplitSolver(solver)
         this.world.gravity.set(0, this.gravity, 0)
-        this.physicsMaterial = new CANNON.Material("physics")
-        const physics_physics = new CANNON.ContactMaterial(
+        this.physicsMaterial = new Material("physics")
+        const physics_physics = new ContactMaterial(
             this.physicsMaterial,
             this.physicsMaterial,
             {
@@ -190,57 +233,47 @@ class Portfolio {
             z: southWallZ,
         } = southWall.position
 
-        const floorBody = new CANNON.Body({
+        const floorBody = new Body({
             mass: 0,
             material: this.physicsMaterial,
-            position: new CANNON.Vec3(floorX, floorY, floorZ),
+            position: new Vec3(floorX, floorY, floorZ),
         })
 
-        const northWallBody = new CANNON.Body({
+        const northWallBody = new Body({
             mass: 0,
             material: this.physicsMaterial,
-            position: new CANNON.Vec3(northWallX, northWallY, northWallZ),
+            position: new Vec3(northWallX, northWallY, northWallZ),
         })
-        const westWallBody = new CANNON.Body({
+        const westWallBody = new Body({
             mass: 0,
             material: this.physicsMaterial,
-            position: new CANNON.Vec3(westWallX, westWallY, westWallZ),
+            position: new Vec3(westWallX, westWallY, westWallZ),
         })
-        const eastWallBody = new CANNON.Body({
+        const eastWallBody = new Body({
             mass: 0,
             material: this.physicsMaterial,
-            position: new CANNON.Vec3(eastWallX, eastWallY, eastWallZ),
+            position: new Vec3(eastWallX, eastWallY, eastWallZ),
         })
-        const southWallBody = new CANNON.Body({
+        const southWallBody = new Body({
             mass: 0,
             material: this.physicsMaterial,
-            position: new CANNON.Vec3(southWallX, southWallY, southWallZ),
+            position: new Vec3(southWallX, southWallY, southWallZ),
         })
 
         floorBody.addShape(
-            new CANNON.Box(
-                new CANNON.Vec3(floorWidth / 2, floorHeight / 2, 0.1)
-            )
+            new Box(new Vec3(floorWidth / 2, floorHeight / 2, 0.1))
         )
         northWallBody.addShape(
-            new CANNON.Box(
-                new CANNON.Vec3(northWallWidth / 2, northWallHeight / 2, 0.1)
-            )
+            new Box(new Vec3(northWallWidth / 2, northWallHeight / 2, 0.1))
         )
         westWallBody.addShape(
-            new CANNON.Box(
-                new CANNON.Vec3(westWallWidth / 2, westWallHeight / 2, 0.1)
-            )
+            new Box(new Vec3(westWallWidth / 2, westWallHeight / 2, 0.1))
         )
         eastWallBody.addShape(
-            new CANNON.Box(
-                new CANNON.Vec3(eastWallWidth / 2, eastWallHeight / 2, 0.1)
-            )
+            new Box(new Vec3(eastWallWidth / 2, eastWallHeight / 2, 0.1))
         )
         southWallBody.addShape(
-            new CANNON.Box(
-                new CANNON.Vec3(southWallWidth / 2, southWallHeight / 2, 0.1)
-            )
+            new Box(new Vec3(southWallWidth / 2, southWallHeight / 2, 0.1))
         )
 
         floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0)
@@ -278,6 +311,7 @@ class Portfolio {
             }
             this.world.step(_timeElapsed, lastUpdate)
             this.controls.update(_timeElapsed)
+            this.interaction.castRay()
             // console.log(
             //     this.controls.moveForward,
             //     this.controls.moveBackward,
