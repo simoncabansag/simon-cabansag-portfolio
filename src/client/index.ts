@@ -33,6 +33,7 @@ import { PlaneGeometry } from "three/src/geometries/PlaneGeometry.js"
 import { MeshoptDecoder } from "meshoptimizer/meshopt_decoder.module.js"
 import { paintings, overlays, intersects } from "./paintings.ts"
 import { gsap } from "gsap"
+import { Tour } from "./tour.ts"
 
 interface serverAssets {
     env: DataTexture
@@ -157,6 +158,10 @@ class Portfolio {
 
         this.scene.add(this.controls.getObject())
         this.controls.enabled = true
+
+        setTimeout(() => {
+            new Tour(this.controls)
+        }, 3000)
 
         this.threejs?.render(this.scene, this.camera)
     }
